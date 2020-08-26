@@ -14,27 +14,39 @@ description:
   underlying transport but instead runs in a PowerShell interpreter.
 version_added: "2.7"
 requirements:
-- pypsrp (Python library)
+- pypsrp>=0.4.0 (Python library)
 options:
   # transport options
   remote_addr:
     description:
     - The hostname or IP address of the remote host.
     default: inventory_hostname
+    type: str
     vars:
     - name: ansible_host
     - name: ansible_psrp_host
   remote_user:
     description:
     - The user to log in as.
+    type: str
     vars:
     - name: ansible_user
     - name: ansible_psrp_user
+  remote_password:
+    description: Authentication password for the C(remote_user). Can be supplied as CLI option.
+    type: str
+    vars:
+    - name: ansible_password
+    - name: ansible_winrm_pass
+    - name: ansible_winrm_password
+    aliases:
+    - password  # Needed for --ask-pass to come through on delegation
   port:
     description:
     - The port for PSRP to connect on the remote target.
     - Default is C(5986) if I(protocol) is not defined or is C(https),
       otherwise the port is C(5985).
+    type: int
     vars:
     - name: ansible_port
     - name: ansible_psrp_port
@@ -45,11 +57,13 @@ options:
     choices:
     - http
     - https
+    type: str
     vars:
     - name: ansible_psrp_protocol
   path:
     description:
     - The URI path to connect to.
+    type: str
     vars:
     - name: ansible_psrp_path
     default: 'wsman'
@@ -58,6 +72,7 @@ options:
     - The authentication protocol to use when authenticating the remote user.
     - The default, C(negotiate), will attempt to use C(Kerberos) if it is
       available and fall back to C(NTLM) if it isn't.
+    type: str
     vars:
     - name: ansible_psrp_auth
     choices:
@@ -78,6 +93,7 @@ options:
     - validate
     - ignore
     default: validate
+    type: str
     vars:
     - name: ansible_psrp_cert_validation
   ca_cert:
@@ -85,6 +101,7 @@ options:
     - The path to a PEM certificate chain to use when validating the server's
       certificate.
     - This value is ignored if I(cert_validation) is set to C(ignore).
+    type: path
     vars:
     - name: ansible_psrp_cert_trust_path
     - name: ansible_psrp_ca_cert
@@ -93,6 +110,7 @@ options:
     description:
     - The connection timeout for making the request to the remote host.
     - This is measured in seconds.
+    type: int
     vars:
     - name: ansible_psrp_connection_timeout
     default: 30
@@ -102,6 +120,7 @@ options:
     - This value must always be greater than I(operation_timeout).
     - This option requires pypsrp >= 0.3.
     - This is measured in seconds.
+    type: int
     vars:
     - name: ansible_psrp_read_timeout
     default: 30
@@ -109,6 +128,7 @@ options:
   reconnection_retries:
     description:
     - The number of retries on connection errors.
+    type: int
     vars:
     - name: ansible_psrp_reconnection_retries
     default: 0
@@ -118,8 +138,12 @@ options:
     - The backoff time to use in between reconnection attempts.
       (First sleeps X, then sleeps 2*X, then sleeps 4*X, ...)
     - This is measured in seconds.
+    - The C(ansible_psrp_reconnection_backoff) variable was added in Ansible
+      2.9.
+    type: int
     vars:
     - name: ansible_psrp_connection_backoff
+    - name: ansible_psrp_reconnection_backoff
     default: 2
     version_added: '2.8'
   message_encryption:
@@ -135,6 +159,7 @@ options:
       even when running over TLS/HTTPS.
     - C(never) disables any encryption checks that are in place when running
       over HTTP and disables any authentication encryption processes.
+    type: str
     vars:
     - name: ansible_psrp_message_encryption
     choices:
@@ -147,6 +172,7 @@ options:
     - Set the proxy URL to use when connecting to the remote host.
     vars:
     - name: ansible_psrp_proxy
+    type: str
   ignore_proxy:
     description:
     - Will disable any environment proxy settings and connect directly to the
@@ -161,11 +187,13 @@ options:
   certificate_key_pem:
     description:
     - The local path to an X509 certificate key to use with certificate auth.
+    type: path
     vars:
     - name: ansible_psrp_certificate_key_pem
   certificate_pem:
     description:
     - The local path to an X509 certificate to use with certificate auth.
+    type: path
     vars:
     - name: ansible_psrp_certificate_pem
   credssp_auth_mechanism:
@@ -173,6 +201,7 @@ options:
     - The sub authentication mechanism to use with CredSSP auth.
     - When C(auto), both Kerberos and NTLM is attempted with kerberos being
       preferred.
+    type: str
     choices:
     - auto
     - kerberos
@@ -205,6 +234,7 @@ options:
     - Only valid when Kerberos was the negotiated auth or was explicitly set as
       the authentication.
     - Ignored when NTLM was the negotiated auth.
+    type: bool
     vars:
     - name: ansible_psrp_negotiate_delegate
   negotiate_hostname_override:
@@ -216,6 +246,7 @@ options:
     - Only valid when Kerberos was the negotiated auth or was explicitly set as
       the authentication.
     - Ignored when NTLM was the negotiated auth.
+    type: str
     vars:
     - name: ansible_psrp_negotiate_hostname_override
   negotiate_send_cbt:
@@ -235,6 +266,7 @@ options:
       the authentication.
     - Ignored when NTLM was the negotiated auth.
     default: WSMAN
+    type: str
     vars:
     - name: ansible_psrp_negotiate_service
 
@@ -244,6 +276,7 @@ options:
     - Sets the WSMan timeout for each operation.
     - This is measured in seconds.
     - This should not exceed the value for C(connection_timeout).
+    type: int
     vars:
     - name: ansible_psrp_operation_timeout
     default: 20
@@ -252,12 +285,14 @@ options:
     - Sets the maximum size of each WSMan message sent to the remote host.
     - This is measured in bytes.
     - Defaults to C(150KiB) for compatibility with older hosts.
+    type: int
     vars:
     - name: ansible_psrp_max_envelope_size
     default: 153600
   configuration_name:
     description:
     - The name of the PowerShell configuration endpoint to connect to.
+    type: str
     vars:
     - name: ansible_psrp_configuration_name
     default: Microsoft.PowerShell
@@ -276,7 +311,7 @@ from ansible.module_utils._text import to_bytes, to_native, to_text
 from ansible.plugins.connection import ConnectionBase
 from ansible.plugins.shell.powershell import _common_args
 from ansible.utils.display import Display
-from ansible.utils.hashing import secure_hash
+from ansible.utils.hashing import sha1
 
 HAS_PYPSRP = True
 PYPSRP_IMP_ERR = None
@@ -292,6 +327,12 @@ try:
 except ImportError as err:
     HAS_PYPSRP = False
     PYPSRP_IMP_ERR = err
+
+NEWER_PYPSRP = True
+try:
+    import pypsrp.pwsh_scripts
+except ImportError:
+    NEWER_PYPSRP = False
 
 display = Display()
 
@@ -411,11 +452,39 @@ class Connection(ConnectionBase):
 
     def put_file(self, in_path, out_path):
         super(Connection, self).put_file(in_path, out_path)
-        display.vvv("PUT %s TO %s" % (in_path, out_path), host=self._psrp_host)
 
         out_path = self._shell._unquote(out_path)
+        display.vvv("PUT %s TO %s" % (in_path, out_path), host=self._psrp_host)
+
+        # The new method that uses PSRP directly relies on a feature added in pypsrp 0.4.0 (release 2019-09-19). In
+        # case someone still has an older version present we warn them asking to update their library to a newer
+        # release and fallback to the old WSMV shell.
+        if NEWER_PYPSRP:
+            rc, stdout, stderr, local_sha1 = self._put_file_new(in_path, out_path)
+
+        else:
+            display.deprecated("Older pypsrp library detected, please update to pypsrp>=0.4.0 to use the newer copy "
+                               "method over PSRP.", version="2.13", collection_name='ansible.builtin')
+            rc, stdout, stderr, local_sha1 = self._put_file_old(in_path, out_path)
+
+        if rc != 0:
+            raise AnsibleError(to_native(stderr))
+
+        put_output = json.loads(stdout)
+        remote_sha1 = put_output.get("sha1")
+
+        if not remote_sha1:
+            raise AnsibleError("Remote sha1 was not returned, stdout: '%s', stderr: '%s'"
+                               % (to_native(stdout), to_native(stderr)))
+
+        if not remote_sha1 == local_sha1:
+            raise AnsibleError("Remote sha1 hash %s does not match local hash %s"
+                               % (to_native(remote_sha1), to_native(local_sha1)))
+
+    def _put_file_old(self, in_path, out_path):
         script = u'''begin {
     $ErrorActionPreference = "Stop"
+    $ProgressPreference = 'SilentlyContinue'
 
     $path = '%s'
     $fd = [System.IO.File]::Create($path)
@@ -432,7 +501,7 @@ class Connection(ConnectionBase):
     $hash = $hash.Replace("-", "").ToLowerInvariant()
 
     Write-Output -InputObject "{`"sha1`":`"$hash`"}"
-}''' % self._shell._escape(out_path)
+}''' % out_path
 
         cmd_parts = self._shell._encode_script(script, as_list=True,
                                                strict_mode=False,
@@ -444,6 +513,7 @@ class Connection(ConnectionBase):
 
         in_size = os.path.getsize(b_in_path)
         buffer_size = int(self.runspace.connection.max_payload_size / 4 * 3)
+        sha1_hash = sha1()
 
         # copying files is faster when using the raw WinRM shell and not PSRP
         # we will create a WinRS shell just for this process
@@ -461,6 +531,7 @@ class Connection(ConnectionBase):
                                   host=self._psrp_host)
                     b64_data = base64.b64encode(data) + b"\r\n"
                     process.send(b64_data, end=(src_file.tell() == in_size))
+                    sha1_hash.update(data)
 
                 # the file was empty, return empty buffer
                 if offset == 0:
@@ -469,22 +540,134 @@ class Connection(ConnectionBase):
             process.end_invoke()
             process.signal(SignalCode.CTRL_C)
 
-        if process.rc != 0:
-            raise AnsibleError(to_native(process.stderr))
+        return process.rc, process.stdout, process.stderr, sha1_hash.hexdigest()
 
-        put_output = json.loads(process.stdout)
-        remote_sha1 = put_output.get("sha1")
+    def _put_file_new(self, in_path, out_path):
+        copy_script = '''begin {
+    $ErrorActionPreference = "Stop"
+    $WarningPreference = "Continue"
+    $path = $MyInvocation.UnboundArguments[0]
+    $fd = [System.IO.File]::Create($path)
+    $algo = [System.Security.Cryptography.SHA1CryptoServiceProvider]::Create()
+    $bytes = @()
 
-        if not remote_sha1:
-            raise AnsibleError("Remote sha1 was not returned, stdout: '%s', "
-                               "stderr: '%s'" % (to_native(process.stdout),
-                                                 to_native(process.stderr)))
+    $bindingFlags = [System.Reflection.BindingFlags]'NonPublic, Instance'
+    Function Get-Property {
+        <#
+        .SYNOPSIS
+        Gets the private/internal property specified of the object passed in.
+        #>
+        Param (
+            [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+            [System.Object]
+            $Object,
 
-        local_sha1 = secure_hash(in_path)
-        if not remote_sha1 == local_sha1:
-            raise AnsibleError("Remote sha1 hash %s does not match local hash "
-                               "%s" % (to_native(remote_sha1),
-                                       to_native(local_sha1)))
+            [Parameter(Mandatory=$true, Position=1)]
+            [System.String]
+            $Name
+        )
+
+        $Object.GetType().GetProperty($Name, $bindingFlags).GetValue($Object, $null)
+    }
+
+    Function Set-Property {
+        <#
+        .SYNOPSIS
+        Sets the private/internal property specified on the object passed in.
+        #>
+        Param (
+            [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+            [System.Object]
+            $Object,
+
+            [Parameter(Mandatory=$true, Position=1)]
+            [System.String]
+            $Name,
+
+            [Parameter(Mandatory=$true, Position=2)]
+            [AllowNull()]
+            [System.Object]
+            $Value
+        )
+
+        $Object.GetType().GetProperty($Name, $bindingFlags).SetValue($Object, $Value, $null)
+    }
+
+    Function Get-Field {
+        <#
+        .SYNOPSIS
+        Gets the private/internal field specified of the object passed in.
+        #>
+        Param (
+            [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+            [System.Object]
+            $Object,
+
+            [Parameter(Mandatory=$true, Position=1)]
+            [System.String]
+            $Name
+        )
+
+        $Object.GetType().GetField($Name, $bindingFlags).GetValue($Object)
+    }
+
+    # MaximumAllowedMemory is required to be set to so we can send input data that exceeds the limit on a PS
+    # Runspace. We use reflection to access/set this property as it is not accessible publicly. This is not ideal
+    # but works on all PowerShell versions I've tested with. We originally used WinRS to send the raw bytes to the
+    # host but this falls flat if someone is using a custom PS configuration name so this is a workaround. This
+    # isn't required for smaller files so if it fails we ignore the error and hope it wasn't needed.
+    # https://github.com/PowerShell/PowerShell/blob/c8e72d1e664b1ee04a14f226adf655cced24e5f0/src/System.Management.Automation/engine/serialization.cs#L325
+    try {
+        $Host | Get-Property 'ExternalHost' | `
+            Get-Field '_transportManager' | `
+            Get-Property 'Fragmentor' | `
+            Get-Property 'DeserializationContext' | `
+            Set-Property 'MaximumAllowedMemory' $null
+    } catch {}
+}
+process {
+    $bytes = [System.Convert]::FromBase64String($input)
+    $algo.TransformBlock($bytes, 0, $bytes.Length, $bytes, 0) > $null
+    $fd.Write($bytes, 0, $bytes.Length)
+}
+end {
+    $fd.Close()
+
+    $algo.TransformFinalBlock($bytes, 0, 0) > $null
+    $hash = [System.BitConverter]::ToString($algo.Hash).Replace('-', '').ToLowerInvariant()
+    Write-Output -InputObject "{`"sha1`":`"$hash`"}"
+}
+'''
+
+        # Get the buffer size of each fragment to send, subtract 82 for the fragment, message, and other header info
+        # fields that PSRP adds. Adjust to size of the base64 encoded bytes length.
+        buffer_size = int((self.runspace.connection.max_payload_size - 82) / 4 * 3)
+
+        sha1_hash = sha1()
+
+        b_in_path = to_bytes(in_path, errors='surrogate_or_strict')
+        if not os.path.exists(b_in_path):
+            raise AnsibleFileNotFound('file or module does not exist: "%s"' % to_native(in_path))
+
+        def read_gen():
+            offset = 0
+
+            with open(b_in_path, 'rb') as src_fd:
+                for b_data in iter((lambda: src_fd.read(buffer_size)), b""):
+                    data_len = len(b_data)
+                    offset += data_len
+                    sha1_hash.update(b_data)
+
+                    # PSRP technically supports sending raw bytes but that method requires a larger CLIXML message.
+                    # Sending base64 is still more efficient here.
+                    display.vvvvv("PSRP PUT %s to %s (offset=%d, size=%d" % (in_path, out_path, offset, data_len),
+                                  host=self._psrp_host)
+                    b64_data = base64.b64encode(b_data)
+                    yield [to_text(b64_data)]
+
+        rc, stdout, stderr = self._exec_psrp_script(copy_script, read_gen(), arguments=[out_path], force_stop=True)
+
+        return rc, stdout, stderr, sha1_hash.hexdigest()
 
     def fetch_file(self, in_path, out_path):
         super(Connection, self).fetch_file(in_path, out_path)
@@ -574,13 +757,9 @@ if ($bytes_read -gt 0) {
         self._connected = False
 
     def _build_kwargs(self):
-        self._become_method = self._play_context.become_method
-        self._become_user = self._play_context.become_user
-        self._become_pass = self._play_context.become_pass
-
         self._psrp_host = self.get_option('remote_addr')
         self._psrp_user = self.get_option('remote_user')
-        self._psrp_pass = self._play_context.password
+        self._psrp_pass = self.get_option('remote_password')
 
         protocol = self.get_option('protocol')
         port = self.get_option('port')
@@ -682,9 +861,13 @@ if ($bytes_read -gt 0) {
             option = self.get_option('_extras')['ansible_psrp_%s' % arg]
             self._psrp_conn_kwargs[arg] = option
 
-    def _exec_psrp_script(self, script, input_data=None, use_local_scope=True, force_stop=False):
+    def _exec_psrp_script(self, script, input_data=None, use_local_scope=True, force_stop=False, arguments=None):
         ps = PowerShell(self.runspace)
         ps.add_script(script, use_local_scope=use_local_scope)
+        if arguments:
+            for arg in arguments:
+                ps.add_argument(arg)
+
         ps.invoke(input=input_data)
 
         rc, stdout, stderr = self._parse_pipeline_result(ps)

@@ -74,6 +74,7 @@ class StrategyModule(StrategyBase):
         self.noop_task = Task()
         self.noop_task.action = 'meta'
         self.noop_task.args['_raw_params'] = 'noop'
+        self.noop_task.implicit = True
         self.noop_task.set_loader(iterator._play._loader)
 
         return self._create_noop_block_from(original_block, parent)
@@ -88,6 +89,7 @@ class StrategyModule(StrategyBase):
         noop_task = Task()
         noop_task.action = 'meta'
         noop_task.args['_raw_params'] = 'noop'
+        noop_task.implicit = True
         noop_task.set_loader(iterator._play._loader)
 
         host_tasks = {}
@@ -205,6 +207,9 @@ class StrategyModule(StrategyBase):
         # iterate over each task, while there is one left to run
         result = self._tqm.RUN_OK
         work_to_do = True
+
+        self._set_hosts_cache(iterator._play)
+
         while work_to_do and not self._tqm._terminated:
 
             try:
@@ -237,17 +242,6 @@ class StrategyModule(StrategyBase):
                     run_once = False
                     work_to_do = True
 
-                    # test to see if the task across all hosts points to an action plugin which
-                    # sets BYPASS_HOST_LOOP to true, or if it has run_once enabled. If so, we
-                    # will only send this task to the first host in the list.
-
-                    try:
-                        action = action_loader.get(task.action, class_only=True)
-                    except KeyError:
-                        # we don't care here, because the action may simply not have a
-                        # corresponding action plugin
-                        action = None
-
                     # check to see if this task should be skipped, due to it being a member of a
                     # role which has already run (and whether that role allows duplicate execution)
                     if task._role and task._role.has_run(host):
@@ -256,6 +250,26 @@ class StrategyModule(StrategyBase):
                         if task._role._metadata is None or task._role._metadata and not task._role._metadata.allow_duplicates:
                             display.debug("'%s' skipped because role has already run" % task)
                             continue
+
+                    display.debug("getting variables")
+                    task_vars = self._variable_manager.get_vars(play=iterator._play, host=host, task=task,
+                                                                _hosts=self._hosts_cache, _hosts_all=self._hosts_cache_all)
+                    self.add_tqm_variables(task_vars, play=iterator._play)
+                    templar = Templar(loader=self._loader, variables=task_vars)
+                    display.debug("done getting variables")
+
+                    # test to see if the task across all hosts points to an action plugin which
+                    # sets BYPASS_HOST_LOOP to true, or if it has run_once enabled. If so, we
+                    # will only send this task to the first host in the list.
+
+                    task.action = templar.template(task.action)
+
+                    try:
+                        action = action_loader.get(task.action, class_only=True)
+                    except KeyError:
+                        # we don't care here, because the action may simply not have a
+                        # corresponding action plugin
+                        action = None
 
                     if task.action == 'meta':
                         # for the linear strategy, we run meta tasks just once and for
@@ -273,12 +287,6 @@ class StrategyModule(StrategyBase):
                             else:
                                 skip_rest = True
                                 break
-
-                        display.debug("getting variables")
-                        task_vars = self._variable_manager.get_vars(play=iterator._play, host=host, task=task)
-                        self.add_tqm_variables(task_vars, play=iterator._play)
-                        templar = Templar(loader=self._loader, variables=task_vars)
-                        display.debug("done getting variables")
 
                         run_once = templar.template(task.run_once) or action and getattr(action, 'BYPASS_HOST_LOOP', False)
 
@@ -358,7 +366,9 @@ class StrategyModule(StrategyBase):
                             for new_block in new_blocks:
                                 task_vars = self._variable_manager.get_vars(
                                     play=iterator._play,
-                                    task=new_block._parent
+                                    task=new_block._parent,
+                                    _hosts=self._hosts_cache,
+                                    _hosts_all=self._hosts_cache_all,
                                 )
                                 display.debug("filtering new block on tags")
                                 final_block = new_block.filter_tagged_tasks(task_vars)

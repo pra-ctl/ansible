@@ -1,3 +1,6 @@
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
+
 import json
 
 from units.compat import unittest
@@ -40,5 +43,8 @@ class ModuleTestCase(unittest.TestCase):
     def setUp(self):
         self.mock_module = patch.multiple(basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json)
         self.mock_module.start()
+        self.mock_sleep = patch('time.sleep')
+        self.mock_sleep.start()
         set_module_args({})
         self.addCleanup(self.mock_module.stop)
+        self.addCleanup(self.mock_sleep.stop)

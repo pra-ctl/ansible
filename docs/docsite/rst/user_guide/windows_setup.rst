@@ -10,11 +10,11 @@ This document discusses the setup that is required before Ansible can communicat
 Host Requirements
 `````````````````
 For Ansible to communicate to a Windows host and use Windows modules, the
-Windows host must meet the following requirements:
+Windows host must meet these requirements:
 
-* Ansible's supported Windows versions generally match those under current
-  and extended support from Microsoft. Supported desktop OSs include
-  Windows 7, 8.1, and 10, and supported server OSs are Windows Server 2008,
+* Ansible can generally manage Windows versions under current
+  and extended support from Microsoft. Ansible can manage desktop OSs including
+  Windows 7, 8.1, and 10, and server OSs including Windows Server 2008,
   2008 R2, 2012, 2012 R2, 2016, and 2019.
 
 * Ansible requires PowerShell 3.0 or newer and at least .NET 4.0 to be
@@ -88,7 +88,7 @@ WinRM Memory Hotfix
 When running on PowerShell v3.0, there is a bug with the WinRM service that
 limits the amount of memory available to WinRM. Without this hotfix installed,
 Ansible will fail to execute certain commands on the Windows host. These
-hotfixes should installed as part of the system bootstrapping or
+hotfixes should be installed as part of the system bootstrapping or
 imaging process. The script `Install-WMF3Hotfix.ps1 <https://github.com/jborean93/ansible-windows/blob/master/scripts/Install-WMF3Hotfix.ps1>`_ can be used to install the hotfix on affected hosts.
 
 The following PowerShell command will install the hotfix:
@@ -148,9 +148,7 @@ following command:
 
     winrm enumerate winrm/config/Listener
 
-This will output something like the following:
-
-.. code-block:: guess
+This will output something like::
 
     Listener
         Address = *
@@ -193,10 +191,7 @@ the key options that are useful to understand are:
 * ``CertificateThumbprint``: If running over an HTTPS listener, this is the
   thumbprint of the certificate in the Windows Certificate Store that is used
   in the connection. To get the details of the certificate itself, run this
-  command with the relevant certificate thumbprint in PowerShell:
-
-  .. comment: Pygments powershell lexer does not support colons (i.e. URLs)
-  .. code-block:: guess
+  command with the relevant certificate thumbprint in PowerShell::
 
     $thumbprint = "E6CDAA82EEAF2ECE8546E05DB7F3E01AA47D76CE"
     Get-ChildItem -Path cert:\LocalMachine\My -Recurse | Where-Object { $_.Thumbprint -eq $thumbprint } | Select-Object *
@@ -240,10 +235,7 @@ There are three ways to set up a WinRM listener:
 
 Delete WinRM Listener
 +++++++++++++++++++++
-To remove a WinRM listener:
-
-.. comment: Pygments powershell lexer does not support colons (i.e. URLs)
-.. code-block:: guess
+To remove a WinRM listener::
 
     # Remove all listeners
     Remove-Item -Path WSMan:\localhost\Listener\* -Recurse -Force
@@ -268,9 +260,7 @@ following command:
     winrm get winrm/config/Service
     winrm get winrm/config/Winrs
 
-This will output something like the following:
-
-.. code-block:: guess
+This will output something like::
 
     Service
         RootSDDL = O:NSG:BAD:P(A;;GA;;;BA)(A;;GR;;;IU)S:P(AU;FA;GA;;;WD)(AU;SA;GXGW;;;WD)
@@ -312,7 +302,7 @@ options are:
 
 * ``Service\AllowUnencrypted``: This option defines whether WinRM will allow
   traffic that is run over HTTP without message encryption. Message level
-  encryption is only supported when ``ansible_winrm_transport`` is ``ntlm``,
+  encryption is only possible when ``ansible_winrm_transport`` is ``ntlm``,
   ``kerberos`` or ``credssp``. By default this is ``false`` and should only be
   set to ``true`` when debugging WinRM messages.
 
@@ -323,9 +313,7 @@ options are:
 * ``Service\Auth\CbtHardeningLevel``: Specifies whether channel binding tokens are
   not verified (None), verified but not required (Relaxed), or verified and
   required (Strict). CBT is only used when connecting with NTLM or Kerberos
-  over HTTPS. The downstream libraries that Ansible currently uses only support
-  passing the CBT with NTLM authentication. Using Kerberos with
-  ``CbtHardeningLevel = Strict`` will result in a ``404`` error.
+  over HTTPS.
 
 * ``Service\CertificateThumbprint``: This is the thumbprint of the certificate
   used to encrypt the TLS channel used with CredSSP authentication. By default
@@ -338,11 +326,7 @@ options are:
 * ``Winrs\MaxMemoryPerShellMB``: This is the maximum amount of memory allocated
   per shell, including the shell's child processes.
 
-To modify a setting under the ``Service`` key in PowerShell, the following
-command can be used:
-
-.. comment: Pygments powershell lexer does not support colons (i.e. URLs)
-.. code-block:: guess
+To modify a setting under the ``Service`` key in PowerShell::
 
     # substitute {path} with the path to the option after winrm/config/Service
     Set-Item -Path WSMan:\localhost\Service\{path} -Value "value here"
@@ -350,11 +334,7 @@ command can be used:
     # for example, to change Service\Auth\CbtHardeningLevel run
     Set-Item -Path WSMan:\localhost\Service\Auth\CbtHardeningLevel -Value Strict
 
-To modify a setting under the ``Winrs`` key in PowerShell, the following
-command can be used:
-
-.. comment: Pygments powershell lexer does not support colons (i.e. URLs)
-.. code-block:: guess
+To modify a setting under the ``Winrs`` key in PowerShell::
 
     # Substitute {path} with the path to the option after winrm/config/Winrs
     Set-Item -Path WSMan:\localhost\Shell\{path} -Value "value here"
@@ -374,10 +354,7 @@ could in fact be issues with the host setup instead.
 
 One easy way to determine whether a problem is a host issue is to
 run the following command from another Windows host to connect to the
-target Windows host:
-
-.. comment: Pygments powershell lexer does not support -u:Username
-.. code-block:: guess
+target Windows host::
 
     # Test out HTTP
     winrs -r:http://server:5985/wsman -u:Username -p:Password ipconfig
@@ -459,10 +436,23 @@ Sometimes an installer may restart the WinRM or HTTP service and cause this erro
 best way to deal with this is to use ``win_psexec`` from another
 Windows host.
 
+Failure to Load Builtin Modules
++++++++++++++++++++++++++++++++
+If powershell fails with an error message similar to ``The 'Out-String' command was found in the module 'Microsoft.PowerShell.Utility', but the module could not be loaded.``
+then there could be a problem trying to access all the paths specified by the ``PSModulePath`` environment variable.
+A common cause of this issue is that the ``PSModulePath`` environment variable contains a UNC path to a file share and
+because of the double hop/credential delegation issue the Ansible process cannot access these folders. The way around
+this problems is to either:
+
+* Remove the UNC path from the ``PSModulePath`` environment variable, or
+* Use an authentication option that supports credential delegation like ``credssp`` or ``kerberos`` with credential delegation enabled
+
+See `KB4076842 <https://support.microsoft.com/en-us/help/4076842>`_ for more information on this problem.
+
+
 Windows SSH Setup
 `````````````````
-Ansible 2.8 has added experimental support for using SSH to connect to a
-Windows host.
+Ansible 2.8 has added an experimental SSH connection for Windows managed nodes.
 
 .. warning::
     Use this feature at your own risk!
@@ -480,6 +470,10 @@ Ansible, select one of these three installation options:
 
 * Manually install the service, following the `install instructions <https://github.com/PowerShell/Win32-OpenSSH/wiki/Install-Win32-OpenSSH>`_
   from Microsoft.
+
+* Install the `openssh <https://chocolatey.org/packages/openssh>`_ package using Chocolatey::
+
+    choco install --package-parameters=/SSHServerFeature openssh
 
 * Use ``win_chocolatey`` to install the service::
 
@@ -570,7 +564,7 @@ Here are the known ones:
    :ref:`about_playbooks`
        An introduction to playbooks
    :ref:`playbooks_best_practices`
-       Best practices advice
+       Tips and tricks for playbooks
    :ref:`List of Windows Modules <windows_modules>`
        Windows specific module list, all implemented in PowerShell
    `User Mailing List <https://groups.google.com/group/ansible-project>`_

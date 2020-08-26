@@ -5,6 +5,8 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
+import sys
+
 import argparse
 from operator import attrgetter
 
@@ -13,15 +15,15 @@ from ansible import context
 from ansible.cli import CLI
 from ansible.cli.arguments import option_helpers as opt_help
 from ansible.errors import AnsibleError, AnsibleOptionsError
-from ansible.inventory.host import Host
 from ansible.module_utils._text import to_bytes, to_native
-from ansible.plugins.loader import vars_loader
 from ansible.utils.vars import combine_vars
 from ansible.utils.display import Display
+from ansible.vars.plugins import get_vars_from_inventory_sources, get_vars_from_path
 
 display = Display()
 
 INTERNAL_VARS = frozenset(['ansible_diff_mode',
+                           'ansible_config_file',
                            'ansible_facts',
                            'ansible_forks',
                            'ansible_inventory_sources',
@@ -62,10 +64,11 @@ class InventoryCLI(CLI):
         opt_help.add_inventory_options(self.parser)
         opt_help.add_vault_options(self.parser)
         opt_help.add_basedir_options(self.parser)
+        opt_help.add_runtask_options(self.parser)
 
         # remove unused default options
-        self.parser.add_argument('--limit', default=argparse.SUPPRESS, type=lambda v: self.parser.error('unrecognized arguments: --limit'))
-        self.parser.add_argument('--list-hosts', default=argparse.SUPPRESS, type=lambda v: self.parser.error('unrecognized arguments: --list-hosts'))
+        self.parser.add_argument('-l', '--limit', help=argparse.SUPPRESS, action=opt_help.UnrecognizedArgument, nargs='?')
+        self.parser.add_argument('--list-hosts', help=argparse.SUPPRESS, action=opt_help.UnrecognizedArgument)
 
         self.parser.add_argument('args', metavar='host|group', nargs='?')
 
@@ -112,7 +115,7 @@ class InventoryCLI(CLI):
 
         # set host pattern to default if not supplied
         if options.args:
-            options.pattern = options.args[0]
+            options.pattern = options.args
         else:
             options.pattern = 'all'
 
@@ -132,7 +135,6 @@ class InventoryCLI(CLI):
                 raise AnsibleOptionsError("You must pass a single valid host to --host parameter")
 
             myvars = self._get_host_variables(host=hosts[0])
-            self._remove_internal(myvars)
 
             # FIXME: should we template first?
             results = self.dump(myvars)
@@ -160,9 +162,9 @@ class InventoryCLI(CLI):
                         f.write(results)
                 except (OSError, IOError) as e:
                     raise AnsibleError('Unable to write to destination file (%s): %s' % (to_native(outfile), to_native(e)))
-            exit(0)
+            sys.exit(0)
 
-        exit(1)
+        sys.exit(1)
 
     @staticmethod
     def dump(stuff):
@@ -181,64 +183,40 @@ class InventoryCLI(CLI):
         else:
             import json
             from ansible.parsing.ajson import AnsibleJSONEncoder
-            results = json.dumps(stuff, cls=AnsibleJSONEncoder, sort_keys=True, indent=4)
+            results = json.dumps(stuff, cls=AnsibleJSONEncoder, sort_keys=True, indent=4, preprocess_unsafe=True)
 
         return results
-
-    # FIXME: refactor to use same for VM
-    def get_plugin_vars(self, path, entity):
-
-        data = {}
-
-        def _get_plugin_vars(plugin, path, entities):
-            data = {}
-            try:
-                data = plugin.get_vars(self.loader, path, entity)
-            except AttributeError:
-                try:
-                    if isinstance(entity, Host):
-                        data = combine_vars(data, plugin.get_host_vars(entity.name))
-                    else:
-                        data = combine_vars(data, plugin.get_group_vars(entity.name))
-                except AttributeError:
-                    if hasattr(plugin, 'run'):
-                        raise AnsibleError("Cannot use v1 type vars plugin %s from %s" % (plugin._load_name, plugin._original_path))
-                    else:
-                        raise AnsibleError("Invalid vars plugin %s from %s" % (plugin._load_name, plugin._original_path))
-            return data
-
-        for plugin in vars_loader.all():
-            data = combine_vars(data, _get_plugin_vars(plugin, path, entity))
-
-        return data
 
     def _get_group_variables(self, group):
 
         # get info from inventory source
         res = group.get_vars()
 
-        # FIXME: add switch to skip vars plugins, add vars plugin info
-        for inventory_dir in self.inventory._sources:
-            res = combine_vars(res, self.get_plugin_vars(inventory_dir, group))
+        # Always load vars plugins
+        res = combine_vars(res, get_vars_from_inventory_sources(self.loader, self.inventory._sources, [group], 'all'))
+        if context.CLIARGS['basedir']:
+            res = combine_vars(res, get_vars_from_path(self.loader, context.CLIARGS['basedir'], [group], 'all'))
 
         if group.priority != 1:
             res['ansible_group_priority'] = group.priority
 
-        return res
+        return self._remove_internal(res)
 
     def _get_host_variables(self, host):
 
         if context.CLIARGS['export']:
+            # only get vars defined directly host
             hostvars = host.get_vars()
 
-            # FIXME: add switch to skip vars plugins
-            # add vars plugin info
-            for inventory_dir in self.inventory._sources:
-                hostvars = combine_vars(hostvars, self.get_plugin_vars(inventory_dir, host))
+            # Always load vars plugins
+            hostvars = combine_vars(hostvars, get_vars_from_inventory_sources(self.loader, self.inventory._sources, [host], 'all'))
+            if context.CLIARGS['basedir']:
+                hostvars = combine_vars(hostvars, get_vars_from_path(self.loader, context.CLIARGS['basedir'], [host], 'all'))
         else:
-            hostvars = self.vm.get_vars(host=host, include_hostvars=False)
+            # get all vars flattened by host, but skip magic hostvars
+            hostvars = self.vm.get_vars(host=host, include_hostvars=False, stage='all')
 
-        return hostvars
+        return self._remove_internal(hostvars)
 
     def _get_group(self, gname):
         group = self.inventory.groups.get(gname)
@@ -251,6 +229,8 @@ class InventoryCLI(CLI):
             if internal in dump:
                 del dump[internal]
 
+        return dump
+
     @staticmethod
     def _remove_empty(dump):
         # remove empty keys
@@ -261,10 +241,8 @@ class InventoryCLI(CLI):
     @staticmethod
     def _show_vars(dump, depth):
         result = []
-        InventoryCLI._remove_internal(dump)
-        if context.CLIARGS['show_vars']:
-            for (name, val) in sorted(dump.items()):
-                result.append(InventoryCLI._graph_name('{%s = %s}' % (name, val), depth))
+        for (name, val) in sorted(dump.items()):
+            result.append(InventoryCLI._graph_name('{%s = %s}' % (name, val), depth))
         return result
 
     @staticmethod
@@ -283,9 +261,11 @@ class InventoryCLI(CLI):
         if group.name != 'all':
             for host in sorted(group.hosts, key=attrgetter('name')):
                 result.append(self._graph_name(host.name, depth))
-                result.extend(self._show_vars(host.get_vars(), depth + 1))
+                if context.CLIARGS['show_vars']:
+                    result.extend(self._show_vars(self._get_host_variables(host), depth + 1))
 
-        result.extend(self._show_vars(self._get_group_variables(group), depth))
+        if context.CLIARGS['show_vars']:
+            result.extend(self._show_vars(self._get_group_variables(group), depth))
 
         return result
 
@@ -329,7 +309,6 @@ class InventoryCLI(CLI):
         for host in hosts:
             hvars = self._get_host_variables(host)
             if hvars:
-                self._remove_internal(hvars)
                 results['_meta']['hostvars'][host.name] = hvars
 
         return results
@@ -358,7 +337,6 @@ class InventoryCLI(CLI):
                     if h.name not in seen:  # avoid defining host vars more than once
                         seen.append(h.name)
                         myvars = self._get_host_variables(host=h)
-                        self._remove_internal(myvars)
                     results[group.name]['hosts'][h.name] = myvars
 
             if context.CLIARGS['export']:
@@ -393,7 +371,6 @@ class InventoryCLI(CLI):
                     if host.name not in seen:
                         seen.add(host.name)
                         host_vars = self._get_host_variables(host=host)
-                        self._remove_internal(host_vars)
                     else:
                         host_vars = {}
                     try:

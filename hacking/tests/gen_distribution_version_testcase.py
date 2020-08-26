@@ -9,13 +9,17 @@ and the current ansible_facts regarding the distribution version.
 This assumes a working ansible version in the path.
 """
 
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
-import os.path
-import subprocess
 import json
+import os.path
+import platform
+import subprocess
 import sys
 
 from ansible.module_utils import distro
+from ansible.module_utils._text import to_text
 
 
 filelist = [
@@ -36,6 +40,7 @@ filelist = [
     '/etc/altlinux-release',
     '/etc/os-release',
     '/etc/coreos/update.conf',
+    '/etc/flatcar/update.conf',
     '/usr/lib/os-release',
 ]
 
@@ -53,13 +58,14 @@ dist = distro.linux_distribution(full_distribution_name=False)
 facts = ['distribution', 'distribution_version', 'distribution_release', 'distribution_major_version', 'os_family']
 
 try:
-    ansible_out = subprocess.check_output(
+    b_ansible_out = subprocess.check_output(
         ['ansible', 'localhost', '-m', 'setup'])
 except subprocess.CalledProcessError as e:
     print("ERROR: ansible run failed, output was: \n")
     print(e.output)
     sys.exit(e.returncode)
 
+ansible_out = to_text(b_ansible_out)
 parsed = json.loads(ansible_out[ansible_out.index('{'):])
 ansible_facts = {}
 for fact in facts:
@@ -72,9 +78,26 @@ nicename = ansible_facts['distribution'] + ' ' + ansible_facts['distribution_ver
 
 output = {
     'name': nicename,
+    'distro': {
+        'codename': distro.codename(),
+        'id': distro.id(),
+        'name': distro.name(),
+        'version': distro.version(),
+        'version_best': distro.version(best=True),
+        'lsb_release_info': distro.lsb_release_info(),
+        'os_release_info': distro.os_release_info(),
+    },
     'input': fcont,
     'platform.dist': dist,
     'result': ansible_facts,
 }
+
+system = platform.system()
+if system != 'Linux':
+    output['platform.system'] = system
+
+release = platform.release()
+if release:
+    output['platform.release'] = release
 
 print(json.dumps(output, indent=4))

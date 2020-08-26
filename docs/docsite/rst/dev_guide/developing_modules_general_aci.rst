@@ -263,7 +263,7 @@ Example: ``aci.post_config()``
 
 Example code
 """"""""""""
-.. code-block:: guess
+.. code-block:: text
 
     if state == 'present':
         aci.payload(
@@ -285,9 +285,9 @@ Example code
                 ),
             ],
         )
-        
+
         aci.get_diff(aci_class='<object APIC class>')
-        
+
         aci.post_config()
 
 
@@ -295,7 +295,7 @@ When state is absent
 ^^^^^^^^^^^^^^^^^^^^
 If the task sets the state to absent, then the ``delete_config()`` method is all that is needed. This method does not take any arguments, and handles check mode.
 
-.. code-block:: guess
+.. code-block:: text
 
         elif state == 'absent':
             aci.delete_config()
@@ -305,7 +305,7 @@ Exiting the module
 ^^^^^^^^^^^^^^^^^^
 To have the module exit, call the ACIModule method ``exit_json()``. This method automatically takes care of returning the common return values for you.
 
-.. code-block:: guess
+.. code-block:: text
 
         aci.exit_json()
 
@@ -319,13 +319,13 @@ Testing ACI library functions
 =============================
 You can test your ``construct_url()`` and ``payload()`` arguments without accessing APIC hardware by using the following python script:
 
-.. code-block:: guess
+.. code-block:: text
 
     #!/usr/bin/python
     import json
     from ansible.module_utils.network.aci.aci import ACIModule
-    
-    # Just another class mimicking a bare AnsibleModule class for construct_url() and payload() methods
+
+    # Just another class mimicing a bare AnsibleModule class for construct_url() and payload() methods
     class AltModule():
         params = dict(
             host='dummy',
@@ -334,21 +334,21 @@ You can test your ``construct_url()`` and ``payload()`` arguments without access
             state='present',
             output_level='debug',
         )
-    
+
     # A sub-class of ACIModule to overload __init__ (we don't need to log into APIC)
     class AltACIModule(ACIModule):
         def __init__(self):
             self.result = dict(changed=False)
             self.module = AltModule()
             self.params = self.module.params
-    
+
     # Instantiate our version of the ACI module
     aci = AltACIModule()
-    
+
     # Define the variables you need below
     aep = 'AEP'
     aep_domain = 'uni/phys-DOMAIN'
-    
+
     # Below test the construct_url() arguments to see if it produced correct results
     aci.construct_url(
         root_class=dict(
@@ -364,13 +364,13 @@ You can test your ``construct_url()`` and ``payload()`` arguments without access
             module_object=aep_domain,
         ),
     )
-    
+
     # Below test the payload arguments to see if it produced correct results
     aci.payload(
         aci_class='infraRsDomP',
         class_config=dict(tDn=aep_domain),
     )
-    
+
     # Print the URL and proposed payload
     print 'URL:', json.dumps(aci.url, indent=4)
     print 'PAYLOAD:', json.dumps(aci.proposed, indent=4)
@@ -399,7 +399,7 @@ You can run from your fork something like:
 
 .. seealso::
 
-   :doc:`testing_sanity`
+   :ref:`testing_sanity`
         Information on how to build sanity tests.
 
 
@@ -423,13 +423,13 @@ You may want to edit the used inventory at *test/integration/inventory.networkin
     aci_password=my-password
     aci_use_ssl=yes
     aci_use_proxy=no
-    
+
     [aci]
     localhost ansible_ssh_host=127.0.0.1 ansible_connection=local
 
 .. seealso::
 
-   :doc:`testing_integration`
+   :ref:`testing_integration`
        Information on how to build integration tests.
 
 

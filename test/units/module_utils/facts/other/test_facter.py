@@ -16,7 +16,7 @@
 #
 
 # Make coding more python3-ish
-from __future__ import (absolute_import, division)
+from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 from units.compat.mock import Mock, patch
@@ -30,7 +30,7 @@ facter_json_output = '''
   "operatingsystemmajrelease": "25",
   "hardwareisa": "x86_64",
   "kernel": "Linux",
-  "path": "/home/testuser/src/ansible/bin:/home/testuser/src/ansible/test/runner:/home/testuser/perl5/bin:/home/testuser/perl5/bin:/home/testuser/bin:/home/testuser/.local/bin:/home/testuser/pythons/bin:/usr/lib64/qt-3.3/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/testuser/.cabal/bin:/home/testuser/gopath/bin:/home/testuser/.rvm/bin",
+  "path": "/home/testuser/src/ansible/bin:/home/testuser/perl5/bin:/home/testuser/perl5/bin:/home/testuser/bin:/home/testuser/.local/bin:/home/testuser/pythons/bin:/usr/lib64/qt-3.3/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/testuser/.cabal/bin:/home/testuser/gopath/bin:/home/testuser/.rvm/bin",
   "memorysize": "15.36 GB",
   "memoryfree": "4.88 GB",
   "swapsize": "7.70 GB",

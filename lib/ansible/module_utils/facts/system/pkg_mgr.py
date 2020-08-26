@@ -37,6 +37,7 @@ PKG_MGRS = [{'path': '/usr/bin/yum', 'name': 'yum'},
             {'path': '/usr/sbin/sorcery', 'name': 'sorcery'},
             {'path': '/usr/bin/rpm-ostree', 'name': 'atomic_container'},
             {'path': '/usr/bin/installp', 'name': 'installp'},
+            {'path': '/QOpenSys/pkgs/bin/yum', 'name': 'yum'},
             ]
 
 
@@ -78,9 +79,11 @@ class PkgMgrFactCollector(BaseFactCollector):
                 # If there's some new magical Fedora version in the future,
                 # just default to dnf
                 pkg_mgr_name = 'dnf'
+        elif collected_facts['ansible_distribution'] == 'Amazon':
+            pkg_mgr_name = 'yum'
         else:
-            # If it's not Fedora and it's Red Hat family of distros, assume RHEL
-            # or a clone. For versions of RHEL < 8 that Ansible supports, the
+            # If it's not one of the above and it's Red Hat family of distros, assume
+            # RHEL or a clone. For versions of RHEL < 8 that Ansible supports, the
             # vendor supported official package manager is 'yum' and in RHEL 8+
             # (as far as we know at the time of this writing) it is 'dnf'.
             # If anyone wants to force a non-official package manager then they

@@ -2,6 +2,8 @@
 
 # Copyright: (c) 2017, Ansible Project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 
 class ModuleDocFragment(object):
@@ -27,4 +29,14 @@ options:
     description: Add hosts to group based on the values of a variable.
     type: list
     default: []
+  use_extra_vars:
+    version_added: '2.11'
+    description: Merge extra vars into the available variables for composition (highest precedence).
+    type: bool
+    default: False
+    ini:
+      - section: inventory_plugins
+        key: use_extra_vars
+    env:
+      - name: ANSIBLE_INVENTORY_USE_EXTRA_VARS
 '''

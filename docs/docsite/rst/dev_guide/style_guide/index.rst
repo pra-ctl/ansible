@@ -48,6 +48,31 @@ Header case
 Headers should be written in sentence case. For example, this section's title is
 ``Header case``, not ``Header Case`` or ``HEADER CASE``.
 
+
+Avoid using Latin phrases
+-------------------------
+
+Latin words and phrases like ``e.g.`` or ``etc.``
+are easily understood by English speakers.
+They may be harder to understand for others and are also tricky for automated translation.
+
+Use the following English terms in place of Latin terms or abbreviations:
+
++-------------------------------+------------------------------+
+| Latin                         | English                      |
++===============================+==============================+
+| i.e                           | in other words               |
++-------------------------------+------------------------------+
+| e.g.                          | for example                  |
++-------------------------------+------------------------------+
+| etc                           | and so on                    |
++-------------------------------+------------------------------+
+| via                           | by/ through                  |
++-------------------------------+------------------------------+
+| vs./versus                    | rather than/against          |
++-------------------------------+------------------------------+
+
+
 reStructuredText guidelines
 ===========================
 
@@ -57,7 +82,7 @@ We follow these technical or mechanical guidelines on all rST pages:
 Header notation
 ---------------
 
-`Section headers in reStructuredText <http://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#sections>`_
+`Section headers in reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#sections>`_
 can use a variety of notations.
 Sphinx will 'learn on the fly' when creating a hierarchy of headers.
 To make our documents easy to read and to edit, we follow a standard set of header notations.
@@ -111,12 +136,14 @@ We use:
 Internal navigation
 -------------------
 
-`Anchors (also called labels) and links <http://www.sphinx-doc.org/en/master/usage/restructuredtext/roles.html#ref-role>`_
+`Anchors (also called labels) and links <https://www.sphinx-doc.org/en/master/usage/restructuredtext/roles.html#ref-role>`_
 work together to help users find related content.
 Local tables of contents also help users navigate quickly to the information they need.
 All internal links should use the ``:ref:`` syntax.
 Every page should have at least one anchor to support internal ``:ref:`` links.
 Long pages, or pages with multiple levels of headers, can also include a local TOC.
+
+.. _adding_anchors_rst:
 
 Adding anchors
 ^^^^^^^^^^^^^^
@@ -140,6 +167,39 @@ Adding internal links
    :ref:`this page <unique_page>`
 
 The second example adds custom text for the link.
+
+Adding links to modules and plugins
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Ansible 2.10 and later require the extended Fully Qualified Collection Name (FQCN) as part of the links:
+
+.. code-block:: text
+
+  ansible_collections. + FQCN + _module
+
+For example:
+
+  .. code-block:: rst
+
+   :ref:`ansible.builtin.first_found lookup plugin <ansible_collections.ansible.builtin.first_found_lookup>`
+
+displays as :ref:`ansible.builtin.first_found lookup plugin <ansible_collections.ansible.builtin.first_found_lookup>`.
+
+Modules require different suffixes from other plugins:
+
+* Module links use this extended FQCN module name with ``_module`` for the anchor.
+* Plugin links use this extended FQCN plugin name with the plugin type (``_connection`` for example).
+
+.. code-block:: rst
+
+   :ref:`arista.eos.eos_config <ansible_collections.arista.eos.eos_config_module>`
+   :ref:`community.kubernetes.kubectl connection plugin <ansible_collections.community.kubernetes.kubectl_connection>`
+
+.. note::
+
+	``ansible.builtin`` is the FQCN for modules included in ``ansible.base``. Documentation links are the only place you prepend ``ansible_collections`` to the FQCN. This is used by the documentation build scripts to correctly fetch documentation from collections on Ansible Galaxy.
+
+.. _local_toc:
 
 Adding local TOCs
 ^^^^^^^^^^^^^^^^^
@@ -171,6 +231,7 @@ These pages offer more help with grammatical, stylistic, and technical rules for
   trademarks
   grammar_punctuation
   spelling_word_choice
+  search_hints
   resources
 
 .. seealso::

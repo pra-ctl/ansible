@@ -28,18 +28,18 @@ DOCUMENTATION = """
          required: True
       encrypt:
         description:
-           - Which hash scheme to encrypt the returning password, should be one hash scheme from C(passlib.hash).
+           - Which hash scheme to encrypt the returning password, should be one hash scheme from C(passlib.hash; md5_crypt, bcrypt, sha256_crypt, sha512_crypt)
            - If not provided, the password will be returned in plain text.
            - Note that the password is always stored as plain text, only the returning password is encrypted.
            - Encrypt also forces saving the salt value for idempotence.
            - Note that before 2.6 this option was incorrectly labeled as a boolean for a long time.
-        default: None
       chars:
         version_added: "1.4"
         description:
           - Define comma separated list of names that compose a custom character set in the generated passwords.
           - 'By default generated passwords contain a random mix of upper and lowercase ASCII letters, the numbers 0-9 and punctuation (". , : - _").'
           - "They can be either parts of Python's string module attributes (ascii_letters,digits, etc) or are used literally ( :, -)."
+          - "Other valid values include 'ascii_lowercase', 'ascii_uppercase', 'digits', 'hexdigits', 'octdigits', 'printable', 'punctuation' and 'whitespace'."
           - "To enter comma use two commas ',,' somewhere - preferably at the end. Quotes and double quotes are not supported."
         type: string
       length:
@@ -74,10 +74,10 @@ EXAMPLES = """
     password: "{{ lookup('password', '/tmp/passwordfile chars=ascii_letters') }}"
     priv: '{{ client }}_{{ tier }}_{{ role }}.*:ALL'
 
-- name: create a mysql user with a random password using only digits
+- name: create a mysql user with an 8 character random password using only digits
   mysql_user:
     name: "{{ client }}"
-    password: "{{ lookup('password', '/tmp/passwordfile chars=digits') }}"
+    password: "{{ lookup('password', '/tmp/passwordfile length=8 chars=digits') }}"
     priv: "{{ client }}_{{ tier }}_{{ role }}.*:ALL"
 
 - name: create a mysql user with a random password using many different char sets
@@ -85,6 +85,10 @@ EXAMPLES = """
     name: "{{ client }}"
     password: "{{ lookup('password', '/tmp/passwordfile chars=ascii_letters,digits,hexdigits,punctuation') }}"
     priv: "{{ client }}_{{ tier }}_{{ role }}.*:ALL"
+
+- name: create lowercase 8 character name for Kubernetes pod name
+  set_fact:
+    random_pod_name: "web-{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=8') }}"
 """
 
 RETURN = """

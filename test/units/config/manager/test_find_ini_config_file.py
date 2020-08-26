@@ -3,7 +3,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 # Make coding more python3-ish
-from __future__ import (absolute_import, division)
+from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 import os
@@ -53,8 +53,15 @@ def setup_existing_files(request, monkeypatch):
         else:
             return False
 
+    def _os_access(path, access):
+        if to_text(path) in (request.param[0]):
+            return True
+        else:
+            return False
+
     # Enable user and system dirs so that we know cwd takes precedence
     monkeypatch.setattr("os.path.exists", _os_path_exists)
+    monkeypatch.setattr("os.access", _os_access)
     monkeypatch.setattr("os.getcwd", lambda: os.path.dirname(cfg_dir))
     monkeypatch.setattr("os.path.isdir", lambda path: True if to_text(path) == cfg_dir else real_isdir(path))
 

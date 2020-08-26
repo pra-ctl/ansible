@@ -34,7 +34,7 @@ Most callbacks shipped with Ansible are disabled by default and need to be white
 
 .. code-block:: ini
 
-  #callback_whitelist = timer, mail, profile_roles
+  #callback_whitelist = timer, mail, profile_roles, collection_namespace.collection_name.custom_callback
 
 Setting a callback plugin for ``ansible-playbook``
 --------------------------------------------------
@@ -78,12 +78,6 @@ Plugin list
 
 You can use ``ansible-doc -t callback -l`` to see the list of available plugins.
 Use ``ansible-doc -t callback <plugin name>`` to see specific documents and examples.
-
-.. toctree:: :maxdepth: 1
-    :glob:
-
-    callback/*
-
 
 .. seealso::
 

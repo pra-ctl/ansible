@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 import os
 import re
@@ -9,7 +11,7 @@ import sys
 def main():
     base_dir = os.getcwd() + os.path.sep
     docs_dir = os.path.abspath('docs/docsite')
-    cmd = ['make', 'singlehtmldocs']
+    cmd = ['make', 'base_singlehtmldocs']
 
     sphinx = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=docs_dir)
     stdout, stderr = sphinx.communicate()
@@ -111,6 +113,7 @@ def simplify_stdout(value):
             notice += ' (%d previous rendering line(s) omitted)' % (len(rendering) - 1)
 
         keep.append(notice)
+        # Could change to rendering.clear() if we do not support python2
         rendering[:] = []
 
     for line in lines:

@@ -74,6 +74,7 @@ class CallbackBase(AnsiblePlugin):
             self._display.vvvv('Loading callback plugin %s of type %s, v%s from %s' % (name, ctype, version, sys.modules[self.__module__].__file__))
 
         self.disabled = False
+        self.wants_implicit_tasks = False
 
         self._plugin_options = {}
         if options is not None:
@@ -97,6 +98,10 @@ class CallbackBase(AnsiblePlugin):
 
         # load from config
         self._plugin_options = C.config.get_plugin_options(get_plugin_class(self), self._load_name, keys=task_keys, variables=var_options, direct=direct)
+
+    def _run_is_verbose(self, result, verbosity=0):
+        return ((self._display.verbosity > verbosity or result._result.get('_ansible_verbose_always', False) is True)
+                and result._result.get('_ansible_verbose_override', False) is False)
 
     def _dump_results(self, result, indent=None, sort_keys=True, keep_invocation=False):
 
@@ -180,6 +185,8 @@ class CallbackBase(AnsiblePlugin):
                 for x in ['before', 'after']:
                     if isinstance(diff[x], MutableMapping):
                         diff[x] = self._serialize_diff(diff[x])
+                    elif diff[x] is None:
+                        diff[x] = ''
                 if 'before_header' in diff:
                     before_header = u"before: %s" % diff['before_header']
                 else:
@@ -232,12 +239,6 @@ class CallbackBase(AnsiblePlugin):
         else:
             item = result.get('_ansible_item_label', result.get('item'))
         return item
-
-    def _get_item(self, result):
-        ''' here for backwards compat, really should have always been named: _get_item_label'''
-        cback = getattr(self, 'NAME', os.path.basename(__file__))
-        self._display.deprecated("The %s callback plugin should be updated to use the _get_item_label method instead" % cback, version="2.11")
-        return self._get_item_label(result)
 
     def _process_items(self, result):
         # just remove them as now they get handled by individual callbacks

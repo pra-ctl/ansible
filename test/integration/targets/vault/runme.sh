@@ -106,6 +106,14 @@ if [ -x "$(command -v setsid)" ]; then
     setsid sh -c 'tty; echo test-vault-password|ansible-vault view --ask-vault-pass -vvvvv vaulted.inventory' < /dev/null > log 2>&1
     echo $?
     cat log
+
+    # test using --ask-vault-password option
+    CMD='ansible-playbook -i ../../inventory -vvvvv --ask-vault-password test_vault.yml'
+    setsid sh -c "echo test-vault-password|${CMD}" < /dev/null > log 2>&1 && :
+    WRONG_RC=$?
+    cat log
+    echo "rc was $WRONG_RC (0 is expected)"
+    [ $WRONG_RC -eq 0 ]
 fi
 
 ansible-vault view "$@" --vault-password-file vault-password-wrong format_1_1_AES256.yml && :
@@ -317,6 +325,10 @@ echo "rc was $WRONG_RC (1 is expected)"
 
 ansible-vault encrypt_string "$@" --vault-password-file "${NEW_VAULT_PASSWORD}" "a test string"
 
+# Test with multiple vault password files
+# https://github.com/ansible/ansible/issues/57172
+env ANSIBLE_VAULT_PASSWORD_FILE=vault-password ansible-vault encrypt_string "$@" --vault-password-file "${NEW_VAULT_PASSWORD}" --encrypt-vault-id default "a test string"
+
 ansible-vault encrypt_string "$@" --vault-password-file "${NEW_VAULT_PASSWORD}" --name "blippy" "a test string names blippy"
 
 ansible-vault encrypt_string "$@" --vault-id "${NEW_VAULT_PASSWORD}" "a test string"
@@ -406,6 +418,8 @@ ansible-playbook test_vault_embedded.yml -i ../../inventory -v "$@" --vault-pass
 ansible-playbook test_vaulted_inventory.yml -i vaulted.inventory -v "$@" --vault-password-file vault-password
 ansible-playbook test_vaulted_template.yml -i ../../inventory -v "$@" --vault-password-file vault-password
 
+# test using --vault-pass-file option
+ansible-playbook test_vault.yml          -i ../../inventory -v "$@" --vault-pass-file vault-password
 
 # install TOML for parse toml inventory
 # test playbooks using vaulted files(toml)
@@ -503,3 +517,8 @@ ansible-playbook "$@" -i invalid_format/inventory --vault-id invalid_format/vaul
 
 # Run playbook with vault file with unicode in filename (https://github.com/ansible/ansible/issues/50316)
 ansible-playbook -i ../../inventory -v "$@" --vault-password-file vault-password test_utf8_value_in_filename.yml
+
+# Ensure we don't leave unencrypted temp files dangling
+ansible-playbook -v "$@" --vault-password-file vault-password test_dangling_temp.yml
+
+ansible-playbook "$@" --vault-password-file vault-password single_vault_as_string.yml

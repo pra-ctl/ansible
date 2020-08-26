@@ -45,7 +45,7 @@ EXAMPLES = r'''
         private_only: not (public_dns_name is defined or ip_address is defined)
 
         # complex group membership
-        multi_group: (group_names|intersection(['alpha', 'beta', 'omega']))|length >= 2
+        multi_group: (group_names | intersect(['alpha', 'beta', 'omega'])) | length >= 2
 
     keyed_groups:
         # this creates a group per distro (distro_CentOS, distro_Debian) and assigns the hosts that have matching values to it,
@@ -53,18 +53,18 @@ EXAMPLES = r'''
         - prefix: distro
           key: ansible_distribution
 
-        # the following examples assume the first inventory is from contrib/inventory/ec2.py
+        # the following examples assume the first inventory is from the `aws_ec2` plugin
         # this creates a group per ec2 architecture and assign hosts to the matching ones (arch_x86_64, arch_sparc, etc)
         - prefix: arch
-          key: ec2_architecture
+          key: architecture
 
         # this creates a group per ec2 region like "us_west_1"
         - prefix: ""
           separator: ""
-          key: ec2_region
+          key: placement.region
 
         # this creates a common parent group for all ec2 availability zones
-        - key: ec2_placement
+        - key: placement.availability_zone
           parent_group: all_ec2_zones
 '''
 

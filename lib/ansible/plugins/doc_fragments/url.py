@@ -2,6 +2,8 @@
 
 # Copyright: (c) 2018, John Barker <gundalow@redhat.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 
 class ModuleDocFragment(object):
@@ -16,6 +18,7 @@ options:
   force:
     description:
       - If C(yes) do not get a cached copy.
+      - Alias C(thirsty) has been deprecated and will be removed in 2.13.
     type: bool
     default: no
     aliases: [ thirsty ]

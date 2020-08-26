@@ -26,6 +26,7 @@ from ansible.errors import AnsibleParserError
 from ansible.module_utils._text import to_text, to_native
 from ansible.playbook.play import Play
 from ansible.playbook.playbook_include import PlaybookInclude
+from ansible.plugins.loader import add_all_plugin_dirs
 from ansible.utils.display import Display
 
 display = Display()
@@ -61,6 +62,8 @@ class Playbook:
         cur_basedir = self._loader.get_basedir()
         self._loader.set_basedir(self._basedir)
 
+        add_all_plugin_dirs(self._basedir)
+
         self._file_name = file_name
 
         try:
@@ -76,7 +79,8 @@ class Playbook:
             self._loader.set_basedir(cur_basedir)
             raise AnsibleParserError("A playbook must be a list of plays, got a %s instead" % type(ds), obj=ds)
         elif not ds:
-            display.deprecated("Empty plays will currently be skipped, in the future they will cause a syntax error", version='2.12')
+            display.deprecated("Empty plays will currently be skipped, in the future they will cause a syntax error",
+                               version='2.12', collection_name='ansible.builtin')
 
         # Parse the playbook entries. For plays, we simply parse them
         # using the Play() object, and includes are parsed using the
@@ -89,7 +93,8 @@ class Playbook:
 
             if any(action in entry for action in ('import_playbook', 'include')):
                 if 'include' in entry:
-                    display.deprecated("'include' for playbook includes. You should use 'import_playbook' instead", version="2.12")
+                    display.deprecated("'include' for playbook includes. You should use 'import_playbook' instead",
+                                       version="2.12", collection_name='ansible.builtin')
                 pb = PlaybookInclude.load(entry, basedir=self._basedir, variable_manager=variable_manager, loader=self._loader)
                 if pb is not None:
                     self._entries.extend(pb._entries)

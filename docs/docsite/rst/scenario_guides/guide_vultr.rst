@@ -55,18 +55,10 @@ To check that everything is working properly run the following command:
 
 .. code-block:: console
 
-  #> VULTR_API_KEY=XXX ansible -m vultr_account_facts localhost
+  #> VULTR_API_KEY=XXX ansible -m vultr_account_info localhost
   localhost | SUCCESS => {
-    "ansible_facts": {
-        "vultr_account_facts": {
-            "balance": -8.9,
-            "last_payment_amount": -10.0,
-            "last_payment_date": "2018-07-21 11:34:46",
-            "pending_charges": 6.0
-        }
-    },
     "changed": false,
-    "vultr_account_facts": {
+    "vultr_account_info": {
         "balance": -8.9,
         "last_payment_amount": -10.0,
         "last_payment_date": "2018-07-21 11:34:46",
@@ -101,7 +93,7 @@ Since `Vultr <https://www.vultr.com>`_ offers a public API, the execution of the
           region: New Jersey
 
 
-From that point on, only you creativity is the limit. Make sure to read the documentation of the `available modules <https://docs.ansible.com/ansible/latest/modules/list_of_cloud_modules.html#vultr>`_.
+From that point on, only your creativity is the limit. Make sure to read the documentation of the `available modules <https://docs.ansible.com/ansible/latest/modules/list_of_cloud_modules.html#vultr>`_.
 
 
 Dynamic Inventory
@@ -172,8 +164,8 @@ Run all Vultr tests:
   $ ansible-test integration cloud/vultr/ -v --diff --allow-unsupported
 
 
-To run a specific test, e.g. vultr_account_facts:
+To run a specific test, e.g. vultr_account_info:
 
 .. code-block:: shell
 
-  $ ansible-test integration cloud/vultr/vultr_account_facts -v --diff --allow-unsupported
+  $ ansible-test integration cloud/vultr/vultr_account_info -v --diff --allow-unsupported

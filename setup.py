@@ -1,5 +1,5 @@
-
-from __future__ import print_function
+from __future__ import (absolute_import, division, print_function)
+__metaclass__ = type
 
 import json
 import os
@@ -9,8 +9,6 @@ import sys
 import warnings
 
 from collections import defaultdict
-from distutils.command.build_scripts import build_scripts as BuildScripts
-from distutils.command.sdist import sdist as SDist
 
 try:
     from setuptools import setup, find_packages
@@ -23,8 +21,98 @@ except ImportError:
           " install setuptools).", file=sys.stderr)
     sys.exit(1)
 
-sys.path.insert(0, os.path.abspath('lib'))
-from ansible.release import __version__, __author__
+# `distutils` must be imported after `setuptools` or it will cause explosions
+# with `setuptools >=48.0.0, <49.1`.
+# Refs:
+# * https://github.com/ansible/ansible/issues/70456
+# * https://github.com/pypa/setuptools/issues/2230
+# * https://github.com/pypa/setuptools/commit/bd110264
+from distutils.command.build_scripts import build_scripts as BuildScripts
+from distutils.command.sdist import sdist as SDist
+
+
+def find_package_info(*file_paths):
+    try:
+        with open(os.path.join(*file_paths), 'r') as f:
+            info_file = f.read()
+    except Exception:
+        raise RuntimeError("Unable to find package info.")
+
+    # The version line must have the form
+    # __version__ = 'ver'
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
+                              info_file, re.M)
+    author_match = re.search(r"^__author__ = ['\"]([^'\"]*)['\"]",
+                             info_file, re.M)
+
+    if version_match and author_match:
+        return version_match.group(1), author_match.group(1)
+    raise RuntimeError("Unable to find package info.")
+
+
+def _validate_install_ansible_base():
+    """Validate that we can install ansible-base. Currently this only
+    cares about upgrading to ansible-base from ansible<2.10
+    """
+    # Skip common commands we can ignore
+    # Do NOT add bdist_wheel here, we don't ship wheels
+    # and bdist_wheel is the only place we can prevent pip
+    # from installing, as pip creates a wheel, and installs the wheel
+    # and we have no influence over installation within a wheel
+    if set(('sdist', 'egg_info')).intersection(sys.argv):
+        return
+
+    if os.getenv('ANSIBLE_SKIP_CONFLICT_CHECK', '') not in ('', '0'):
+        return
+
+    # Save these for later restoring things to pre invocation
+    sys_modules = sys.modules.copy()
+    sys_modules_keys = set(sys_modules)
+
+    # Make sure `lib` isn't in `sys.path` that could confuse this
+    sys_path = sys.path[:]
+    abspath = os.path.abspath
+    sys.path[:] = [p for p in sys.path if abspath(p) != abspath('lib')]
+
+    try:
+        from ansible.release import __version__
+    except ImportError:
+        pass
+    else:
+        version_tuple = tuple(int(v) for v in __version__.split('.')[:2])
+        if version_tuple < (2, 10):
+            stars = '*' * 76
+            raise RuntimeError(
+                '''
+
+    %s
+
+    Cannot install ansible-base with a pre-existing ansible==%s
+    installation.
+
+    Installing ansible-base with ansible-2.9 or older currently installed with
+    pip is known to cause problems. Please uninstall ansible and install the new
+    version:
+
+        pip uninstall ansible
+        pip install ansible-base
+
+    If you want to skip the conflict checks and manually resolve any issues
+    afterwards, set the ANSIBLE_SKIP_CONFLICT_CHECK environment variable:
+
+        ANSIBLE_SKIP_CONFLICT_CHECK=1 pip install ansible-base
+
+    %s
+                ''' % (stars, __version__, stars)
+            )
+    finally:
+        sys.path[:] = sys_path
+        for key in sys_modules_keys.symmetric_difference(sys.modules):
+            sys.modules.pop(key, None)
+        sys.modules.update(sys_modules)
+
+
+_validate_install_ansible_base()
 
 
 SYMLINK_CACHE = 'SYMLINK_CACHE.json'
@@ -36,6 +124,13 @@ def _find_symlinks(topdir, extension=''):
     Maintained symlinks exist in the bin dir or are modules which have
     aliases.  Our heuristic is that they are a link in a certain path which
     point to a file in the same directory.
+
+    .. warn::
+
+        We want the symlinks in :file:`bin/` that link into :file:`lib/ansible/*` (currently,
+        :command:`ansible`, :command:`ansible-test`, and :command:`ansible-connection`) to become
+        real files on install.  Updates to the heuristic here *must not* add them to the symlink
+        cache.
     """
     symlinks = defaultdict(list)
     for base_path, dirs, files in os.walk(topdir):
@@ -43,11 +138,36 @@ def _find_symlinks(topdir, extension=''):
             filepath = os.path.join(base_path, filename)
             if os.path.islink(filepath) and filename.endswith(extension):
                 target = os.readlink(filepath)
+                if target.startswith('/'):
+                    # We do not support absolute symlinks at all
+                    continue
+
                 if os.path.dirname(target) == '':
                     link = filepath[len(topdir):]
                     if link.startswith('/'):
                         link = link[1:]
                     symlinks[os.path.basename(target)].append(link)
+                else:
+                    # Count how many directory levels from the topdir we are
+                    levels_deep = os.path.dirname(filepath).count('/')
+
+                    # Count the number of directory levels higher we walk up the tree in target
+                    target_depth = 0
+                    for path_component in target.split('/'):
+                        if path_component == '..':
+                            target_depth += 1
+                            # If we walk past the topdir, then don't store
+                            if target_depth >= levels_deep:
+                                break
+                        else:
+                            target_depth -= 1
+                    else:
+                        # If we managed to stay within the tree, store the symlink
+                        link = filepath[len(topdir):]
+                        if link.startswith('/'):
+                            link = link[1:]
+                        symlinks[target].append(link)
+
     return symlinks
 
 
@@ -69,8 +189,11 @@ def _maintain_symlinks(symlink_type, base_path):
             # SYMLINKS_CACHE doesn't exist.  Fallback to trying to create the
             # cache now.  Will work if we're running directly from a git
             # checkout or from an sdist created earlier.
+            library_symlinks = _find_symlinks('lib', '.py')
+            library_symlinks.update(_find_symlinks('test/lib'))
+
             symlink_data = {'script': _find_symlinks('bin'),
-                            'library': _find_symlinks('lib', '.py'),
+                            'library': library_symlinks,
                             }
 
             # Sanity check that something we know should be a symlink was
@@ -129,8 +252,11 @@ class SDistCommand(SDist):
     def run(self):
         # have to generate the cache of symlinks for release as sdist is the
         # only command that has access to symlinks from the git repo
+        library_symlinks = _find_symlinks('lib', '.py')
+        library_symlinks.update(_find_symlinks('test/lib'))
+
         symlinks = {'script': _find_symlinks('bin'),
-                    'library': _find_symlinks('lib', '.py'),
+                    'library': library_symlinks,
                     }
         _cache_symlinks(symlinks)
 
@@ -198,22 +324,6 @@ def substitute_crypto_to_req(req):
     return [r for r in req if is_not_crypto(r)] + [crypto_backend]
 
 
-def read_extras():
-    """Specify any extra requirements for installation."""
-    extras = dict()
-    extra_requirements_dir = 'packaging/requirements'
-    for extra_requirements_filename in os.listdir(extra_requirements_dir):
-        filename_match = re.search(r'^requirements-(\w*).txt$', extra_requirements_filename)
-        if not filename_match:
-            continue
-        extra_req_file_path = os.path.join(extra_requirements_dir, extra_requirements_filename)
-        try:
-            extras[filename_match.group(1)] = read_file(extra_req_file_path).splitlines()
-        except RuntimeError:
-            pass
-    return extras
-
-
 def get_dynamic_setup_params():
     """Add dynamically calculated setup params to static ones."""
     return {
@@ -222,10 +332,11 @@ def get_dynamic_setup_params():
         'install_requires': substitute_crypto_to_req(
             read_requirements('requirements.txt'),
         ),
-        'extras_require': read_extras(),
     }
 
 
+here = os.path.abspath(os.path.dirname(__file__))
+__version__, __author__ = find_package_info(here, 'lib', 'ansible', 'release.py')
 static_setup_params = dict(
     # Use the distutils SDist so that symlinks are not expanded
     # Use a custom Build for the same reason
@@ -236,7 +347,7 @@ static_setup_params = dict(
         'install_scripts': InstallScriptsCommand,
         'sdist': SDistCommand,
     },
-    name='ansible',
+    name='ansible-base',
     version=__version__,
     description='Radically simple IT automation',
     author=__author__,
@@ -254,25 +365,10 @@ static_setup_params = dict(
     # Ansible will also make use of a system copy of python-six and
     # python-selectors2 if installed but use a Bundled copy if it's not.
     python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*',
-    package_dir={'': 'lib'},
-    packages=find_packages('lib'),
-    package_data={
-        '': [
-            'executor/powershell/*.ps1',
-            'module_utils/csharp/*.cs',
-            'module_utils/csharp/*/*.cs',
-            'module_utils/powershell/*.psm1',
-            'module_utils/powershell/*/*.psm1',
-            'modules/windows/*.ps1',
-            'modules/windows/*/*.ps1',
-            'galaxy/data/*/*.*',
-            'galaxy/data/*/*/.*',
-            'galaxy/data/*/*/*.*',
-            'galaxy/data/*/tests/inventory',
-            'config/base.yml',
-            'config/module_defaults.yml',
-        ],
-    },
+    package_dir={'': 'lib',
+                 'ansible_test': 'test/lib/ansible_test'},
+    packages=find_packages('lib') + find_packages('test/lib'),
+    include_package_data=True,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
@@ -288,6 +384,7 @@ static_setup_params = dict(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Topic :: System :: Installation/Setup',
         'Topic :: System :: Systems Administration',
         'Topic :: Utilities',
@@ -303,6 +400,7 @@ static_setup_params = dict(
         'bin/ansible-vault',
         'bin/ansible-config',
         'bin/ansible-inventory',
+        'bin/ansible-test',
     ],
     data_files=[],
     # Installing as zip files would break due to references to __file__

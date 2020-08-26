@@ -1,2 +1,2 @@
-shippable/posix/group3
-needs/ssh
+shippable/posix/group1
+skip/aix
